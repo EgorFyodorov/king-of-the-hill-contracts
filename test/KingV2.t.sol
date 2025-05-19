@@ -62,7 +62,7 @@ contract KingV2Test is Test {
 
         // Verify funds distribution
         assertEq(king.pendingWithdrawals(owner), 2 ether); // 0.1 ETH fee + 1.9 ETH as previous king
-        assertEq(king.currentPrize(), 1.9 ether); // Prize pool minus fee
+        assertEq(king.currentPrize(), 2 ether); // Full amount as new prize
     }
 
     function test_TotalClaimsTracking() public {
@@ -76,12 +76,21 @@ contract KingV2Test is Test {
         assertEq(king.totalClaims(), 1);
         assertEq(king.claimCount(user1), 1);
 
+        // Check first king change
+        assertEq(king.pendingWithdrawals(owner), 2 ether); // 0.1 ETH fee + 1.9 ETH as previous king
+        assertEq(king.currentPrize(), 2 ether); // Full amount as new prize
+
         vm.startPrank(user2);
         king.claimThrone{value: 3 ether}();
         vm.stopPrank();
 
         assertEq(king.totalClaims(), 2);
         assertEq(king.claimCount(user2), 1);
+
+        // Check second king change
+        assertEq(king.pendingWithdrawals(owner), 2.15 ether); // 0.1 ETH + 1.9 ETH + 0.15 ETH fee
+        assertEq(king.pendingWithdrawals(user1), 2.85 ether); // 95% of 3 ETH
+        assertEq(king.currentPrize(), 3 ether); // Full amount as new prize
     }
 
     function test_SetFeePercentage() public {
@@ -118,7 +127,7 @@ contract KingV2Test is Test {
 
         // Verify funds distribution
         assertEq(king.pendingWithdrawals(owner), 2 ether); // 0.1 ETH fee + 1.9 ETH as previous king
-        assertEq(king.currentPrize(), 1.9 ether); // Prize pool minus fee
+        assertEq(king.currentPrize(), 2 ether); // Full amount as new prize
     }
 
     function test_MultipleClaimsWithFee() public {
@@ -132,7 +141,7 @@ contract KingV2Test is Test {
 
         // Check first king change
         assertEq(king.pendingWithdrawals(owner), 2 ether); // 0.1 ETH fee + 1.9 ETH as previous king
-        assertEq(king.currentPrize(), 1.9 ether); // Prize pool minus fee
+        assertEq(king.currentPrize(), 2 ether); // Full amount as new prize
 
         // Second king change
         vm.startPrank(user2);
@@ -142,6 +151,56 @@ contract KingV2Test is Test {
         // Check second king change
         assertEq(king.pendingWithdrawals(owner), 2.15 ether); // 0.1 ETH + 1.9 ETH + 0.15 ETH fee
         assertEq(king.pendingWithdrawals(user1), 2.85 ether); // 95% of 3 ETH
-        assertEq(king.currentPrize(), 2.85 ether); // 95% of 3 ETH
+        assertEq(king.currentPrize(), 3 ether); // Full amount as new prize
+    }
+
+    function test_RevertWhen_ClaimAmountTooLow() public {
+        vm.deal(user1, 2 ether);
+        vm.deal(user2, 2.1 ether);
+
+        // First user claims throne
+        vm.startPrank(user1);
+        king.claimThrone{value: 2 ether}();
+        vm.stopPrank();
+
+        // Second user tries to claim with amount that's too low
+        vm.startPrank(user2);
+        vm.expectRevert("Need to pay more than current prize plus fee");
+        king.claimThrone{value: 2.1 ether}();
+        vm.stopPrank();
+    }
+
+    function test_ClaimWithMinimumAmount() public {
+        vm.deal(user1, 2 ether);
+
+        // Calculate minimum required amount (2 ETH + 5% = 2.1 ETH)
+        uint256 minRequired = 2 ether + (2 ether * 500) / 10000;
+        // Add 0.01 ETH to make it strictly greater than minimum
+        uint256 claimAmount = minRequired + 0.01 ether;
+
+        vm.deal(user2, claimAmount);
+
+        // First user claims throne
+        vm.startPrank(user1);
+        king.claimThrone{value: 2 ether}();
+        vm.stopPrank();
+
+        // Second user claims with amount strictly greater than minimum
+        vm.startPrank(user2);
+        king.claimThrone{value: claimAmount}();
+        vm.stopPrank();
+
+        // Calculate expected amount for first user (claimAmount - 5% fee)
+        uint256 expectedAmount = claimAmount - (claimAmount * 500) / 10000;
+
+        // Verify first user got their stake back plus profit
+        assertEq(king.pendingWithdrawals(user1), expectedAmount);
+        assertTrue(expectedAmount > 2 ether);
+
+        // Verify second user is now king
+        assertEq(king.king(), user2);
+
+        // Verify new prize is set to full amount
+        assertEq(king.currentPrize(), claimAmount);
     }
 }

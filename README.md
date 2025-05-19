@@ -74,8 +74,9 @@ forge build
 ## Deployment
 
 1. Deploy the initial contract:
+(for use --verify add etherscan_api_key in foundry.toml)
 ```bash
-forge script script/Deploy.s.sol:Deploy --rpc-url $YOUR_RPC_URL --broadcast --verify
+forge script script/Deploy.s.sol ---ffi -rpc-url $YOUR_RPC_URL --broadcast --verify
 ```
 
 2. Add king proxy address to .env file:
@@ -85,15 +86,17 @@ KING_PROXY_ADDRESS=deployed_proxy_address
 
 3. Upgrade to V2:
 ```bash
-forge script script/Upgrade.s.sol:Upgrade --rpc-url $YOUR_RPC_URL --broadcast --verify
+forge script script/Upgrade.s.sol --ffi --rpc-url $YOUR_RPC_URL --broadcast --verify
 ```
 
 3. Check status:
 ```bash
-forge script script/KingStatus.s.sol:Status --rpc-url $YOUR_RPC_URL
+forge script script/KingStatus.s.sol --rpc-url $YOUR_RPC_URL
 ```
 ## Important Notes
 
+- Need to rebuild (forge clean && forge build) before running script
+- Run scripts with flag --ffi
 - The contract is upgradeable, allowing for future improvements
 - Fee percentage is capped at 10%
 - Contract ownership is properly managed

@@ -73,7 +73,7 @@ contract KingImplementationV2 is KingImplementationV1 {
         // Update throne state and tracking variables
         address previousKing = king;
         king = msg.sender;
-        currentPrize = msg.value - fee;
+        currentPrize = msg.value;
         totalClaims++;
         claimCount[msg.sender]++;
 
